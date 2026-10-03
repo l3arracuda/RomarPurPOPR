@@ -21,6 +21,10 @@ _EMPTY_DATE = dt.datetime(1899, 12, 30)
 
 # APPSTS คือธงสถานะงานของใบสั่งซื้อ พิสูจน์จากรายงาน pcsr0511 จำนวน 687 บรรทัด
 # ลงตัวทุกบรรทัดไม่มีข้อยกเว้น  P = ปิดงานแล้ว  ส่วน A กับ T = ยังเปิดอยู่
+# POC_POH เก็บเอกสารสองตระกูล PP1 คือใบสั่งซื้อ และ PT1 คือใบแจ้งคืนสินค้า
+# ใบ PT1 ที่ยังมียอดค้างแปลว่า "ยังไม่ได้ส่งคืน" ไม่ใช่ "ยังไม่ได้รับของ"
+# รายงานของ ERP ปนสองอย่างนี้ไว้ด้วยกัน เราจึงเก็บไว้ทั้งคู่เพื่อให้กระทบยอดกันได้
+# แต่แยกด้วยคอลัมน์ DocKind และรายงานฝั่งเราตั้งต้นที่ใบสั่งซื้ออย่างเดียว
 PO_STATUS = {
     "P": "ปิดงานแล้ว",
     "A": "เปิดอยู่ (ยังไม่เคยรับ)",
@@ -87,7 +91,7 @@ def build(eng: Engine, tolerance: float = 0.02) -> int:
 
 
 COLUMNS = [
-    "PoNo", "PoDat", "PoYm", "PoStatus", "PoStatusName", "Buyer",
+    "PoNo", "DocKind", "PoDat", "PoYm", "PoStatus", "PoStatusName", "Buyer",
     "SupCd", "SupNam", "PoSeq", "PdtCd", "PdtNam", "PdtGrp",
     "ShipDat", "OrderQty", "Unit", "PackSize", "Price", "OrderAmt",
     "RcvQty", "RcvAmt", "RetQty", "RcvQtyNet", "OpenQty", "OpenAmt",
@@ -147,7 +151,9 @@ def _write(eng, poh, sup, pdt, agg, tol) -> int:
         erp_rcv = float(d["RCVQTY"] or 0)
 
         rows.append((
-            d["DOCNO"], po_dat, _ym(po_dat), status, PO_STATUS.get(status, status),
+            d["DOCNO"],
+            "ใบแจ้งคืน" if d["DOCNO"].startswith("PT1") else "ใบสั่งซื้อ",
+            po_dat, _ym(po_dat), status, PO_STATUS.get(status, status),
             head["Buyer"], head["SUPCD"],
             (sup.get(head["SUPCD"]) or {}).get("SUPNAM"),
             d["SEQ"], d["PDTCD"],

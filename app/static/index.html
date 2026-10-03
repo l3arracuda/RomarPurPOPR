@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>รายงานจัดซื้อ ROMAR</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<header class="bar">
+  <h1>รายงานจัดซื้อ</h1>
+  <div class="spacer"></div>
+  <span id="syncinfo" class="muted"></span>
+  <button id="btnSync" class="btn">อัปเดตข้อมูลจาก ERP</button>
+</header>
+
+<nav class="tabs">
+  <button class="tab active" data-tab="overview">ภาพรวม</button>
+  <button class="tab" data-tab="receipts">ใบรับเข้า</button>
+  <button class="tab" data-tab="open">ค้างรับ</button>
+</nav>
+
+<section class="controls">
+  <label>ตั้งแต่ <input type="date" id="dfrom"></label>
+  <label>ถึง <input type="date" id="dto"></label>
+  <span class="presets">
+    <button class="chip" data-preset="7">7 วัน</button>
+    <button class="chip" data-preset="30">30 วัน</button>
+    <button class="chip" data-preset="tm">เดือนนี้</button>
+    <button class="chip" data-preset="lm">เดือนที่แล้ว</button>
+    <button class="chip" data-preset="ty">ปีนี้</button>
+  </span>
+  <label>ผู้ขาย <select id="supplier"><option value="">ทั้งหมด</option></select></label>
+  <label>ผู้สั่งซื้อ <select id="buyer"><option value="">ทั้งหมด</option></select></label>
+  <label>ค้นหา <input type="search" id="q" placeholder="รหัส/ชื่อสินค้า หรือเลขที่ PO"></label>
+  <label class="chk" id="odwrap"><input type="checkbox" id="overdue"> เฉพาะที่เกินกำหนด</label>
+  <label id="kindwrap">ชนิดเอกสาร
+    <select id="kind">
+      <option value="ใบสั่งซื้อ">ใบสั่งซื้อ</option>
+      <option value="ใบแจ้งคืน">ใบแจ้งคืน</option>
+      <option value="">ทั้งสองอย่าง</option>
+    </select></label>
+  <button id="btnExport" class="btn ghost">ดาวน์โหลด Excel</button>
+</section>
+
+<main>
+  <div id="overview" class="pane">
+    <div class="kpis" id="kpis"></div>
+    <div class="card">
+      <h2>มูลค่าสั่งซื้อ เทียบกับ มูลค่ารับเข้า ราย 12 เดือน</h2>
+      <p class="muted small">แท่งซ้ายคือยอดสั่งในเดือนนั้น แท่งขวาคือของที่เข้ามาในเดือนนั้น
+        ซึ่งอาจมาจาก PO ของเดือนก่อน จึงใช้ดูภาระงานและกระแสเงิน ไม่ใช่เทียบกันตรง ๆ</p>
+      <div id="chart"></div>
+    </div>
+    <div class="card">
+      <h2>การตรวจคุณภาพข้อมูล</h2>
+      <div id="dq"></div>
+    </div>
+  </div>
+
+  <div id="receipts" class="pane hidden">
+    <div class="card"><div id="rcvmeta" class="muted small"></div>
+      <div class="tablewrap"><table id="tblRcv"></table></div></div>
+  </div>
+
+  <div id="open" class="pane hidden">
+    <div class="card"><div id="openmeta" class="muted small"></div>
+      <div class="tablewrap"><table id="tblOpen"></table></div></div>
+  </div>
+</main>
+
+<div id="toast" class="toast hidden"></div>
+<script src="/static/app.js"></script>
+</body>
+</html>

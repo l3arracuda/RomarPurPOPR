@@ -29,7 +29,8 @@ R1_COLS = [
 ]
 
 R2_COLS = [
-    ("เลขที่ PO", "PoNo", 14, None), ("วันที่ PO", "PoDat", 11, "date"),
+    ("เลขที่ PO", "PoNo", 14, None), ("ชนิดเอกสาร", "DocKind", 12, None),
+    ("วันที่ PO", "PoDat", 11, "date"),
     ("ผู้สั่ง", "Buyer", 12, None), ("ผู้ขาย", "SupNam", 32, None),
     ("ลำดับ", "PoSeq", 7, None), ("รหัสสินค้า", "PdtCd", 19, None),
     ("ชื่อสินค้า", "PdtNam", 36, None), ("กำหนดส่ง", "ShipDat", 11, "date"),
@@ -125,11 +126,15 @@ def r1(date_from: str, date_to: str, out: str | None = None) -> Path:
     return path
 
 
-def r2(out: str | None = None, supplier: str = "", buyer: str = "") -> Path:
+def r2(out: str | None = None, supplier: str = "", buyer: str = "",
+       kind: str = "ใบสั่งซื้อ") -> Path:
     """R2 — ค้างรับ (Open PO)"""
     eng = warehouse.engine()
     where = ["IsOpen = 1"]
     params: dict = {}
+    if kind:
+        where.append("DocKind = :k")
+        params["k"] = kind
     if supplier:
         where.append("SupCd = :s")
         params["s"] = supplier
