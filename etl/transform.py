@@ -78,7 +78,9 @@ def build(eng: Engine, tolerance: float = 0.02) -> int:
             if when:
                 a["first"] = when if a["first"] is None else min(a["first"], when)
                 a["last"] = when if a["last"] is None else max(a["last"], when)
-    return _write(eng, poh, sup, pdt, agg, tolerance)
+    n = _write(eng, poh, sup, pdt, agg, tolerance)
+    _write_rcv(eng, poh, sup, pdt)
+    return n
 
 
 COLUMNS = [
@@ -156,4 +158,60 @@ def _write(eng, poh, sup, pdt, agg, tol) -> int:
     warehouse.index(eng, "fact_po_line", ["PoDat"])
     warehouse.index(eng, "fact_po_line", ["SupCd"])
     warehouse.index(eng, "fact_po_line", ["IsOpen"])
+    return n
+
+
+RCV_COLUMNS = [
+    "RcvNo", "RcvDat", "RcvYm", "DocTyp", "DocTypName", "SupDocNo",
+    "PoNo", "PoDat", "SupCd", "SupNam", "RcvSeq", "PoSeq",
+    "PdtCd", "PdtNam", "PdtGrp", "Qty", "Unit", "Price", "Amt",
+    "LocCd", "ShipDat", "DaysLate", "Enterer", "Rem",
+]
+
+DOC_TYPE = {"R": "รับเข้าซื้อ", "T": "ส่งคืนผู้ขาย"}
+
+
+def _write_rcv(eng, poh, sup, pdt) -> int:
+    """ตารางระดับ 'บรรทัดใบรับ' สำหรับรายงานของเข้ารายวัน (R1)"""
+    loc = {
+        (r["DOCNO"], r["SEQ"]): r["LOCCD"]
+        for r in warehouse.read(eng, "SELECT DOCNO, SEQ, LOCCD FROM rcv_location")
+    }
+    poline = {
+        (r["DOCNO"], r["SEQ"]): r
+        for r in warehouse.read(eng, "SELECT DOCNO, SEQ, ShipDat FROM po_detail")
+    }
+    heads = {
+        r["DOCNO"]: r
+        for r in warehouse.read(eng, "SELECT * FROM rcv_header")
+    }
+
+    rows = []
+    for d in warehouse.read(eng, "SELECT * FROM rcv_detail"):
+        h = heads.get(d["DOCNO"])
+        if h is None:
+            continue
+        rcv_dat = _d(h["DOCDAT"])
+        po = poh.get(h["PONO"])
+        pl = poline.get((h["PONO"], d["POSEQ"]))
+        ship = _d(pl["ShipDat"]) if pl else None
+        qty = float(d["QTY"] or 0)
+        price = float(d["PRICE"] or 0)
+        rows.append((
+            d["DOCNO"], rcv_dat, _ym(rcv_dat), h["DOCTYP"],
+            DOC_TYPE.get(h["DOCTYP"], h["DOCTYP"]), h["EXTNO"],
+            h["PONO"], _d(po["DOCDAT"]) if po else None,
+            h["SUPCD"], (sup.get(h["SUPCD"]) or {}).get("SUPNAM"),
+            d["SEQ"], d["POSEQ"], d["PDTCD"],
+            (pdt.get(d["PDTCD"]) or {}).get("PDTNAM"),
+            (pdt.get(d["PDTCD"]) or {}).get("PDTGRP"),
+            qty, d["UNIT"], price, qty * price,
+            loc.get((d["DOCNO"], d["SEQ"])), ship,
+            _days(ship, rcv_dat), h["Enterer"], h["REM"],
+        ))
+
+    n = warehouse.replace_table(eng, "fact_rcv_line", RCV_COLUMNS, rows,
+                                pk=("RcvNo", "RcvSeq"))
+    warehouse.index(eng, "fact_rcv_line", ["RcvDat"])
+    warehouse.index(eng, "fact_rcv_line", ["PoNo"])
     return n

@@ -80,6 +80,18 @@ SPECS: list[Spec] = [
         ("DOCNO", "SEQ"),
     ),
     Spec(
+        # ที่เก็บของการรับเข้าไม่ได้อยู่ใน POC_RCVD (คอลัมน์ LOCCD ที่นั่นว่างเปล่า)
+        # ต้องมาเอาจากความเคลื่อนไหวสต็อก DOCTYP=I1 ซึ่งตรงกับใบรับ 1:1 พอดี
+        "rcv_location",
+        """
+        SELECT LTRIM(RTRIM(DOCNO)) AS DOCNO, LTRIM(RTRIM(SEQ)) AS SEQ,
+               LTRIM(RTRIM(LOCCD)) AS LOCCD
+        FROM INV_TRN WHERE DOCTYP = 'I1' AND DOCDAT >= ?
+        """,
+        1,
+        ("DOCNO", "SEQ"),
+    ),
+    Spec(
         "supplier",
         "SELECT LTRIM(RTRIM(SUPCD)) AS SUPCD, SUPNAM, TEL, CONNAM, CRTERM, Sts FROM APC_SUP",
         0,

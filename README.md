@@ -42,6 +42,20 @@ python -m venv .venv
 `sync` ใช้เวลาประมาณ 16 วินาที โหลดใหม่ทั้งหน้าต่าง 2024+ ทุกรอบ จึงรันซ้ำได้ผลเท่าเดิมเสมอ
 `verify` เทียบผลลัพธ์ฝั่ง Python กับ T-SQL ทีละบรรทัด ถ้าตรรกะสองทางไม่ตรงกันจะฟ้องทันที
 
+ออกรายงาน Excel:
+
+```powershell
+.\.venv\Scripts\python -m etl report r1 --from 2026-09-01 --to 2026-10-03
+.\.venv\Scripts\python -m etl report r2
+.\.venv\Scripts\python -m etl report r2 --supplier S-38-0001
+```
+
+ตรวจทานตัวเลขกับรายงาน `pcsr0511` ของ ERP:
+
+```powershell
+.\.venv\Scripts\python -m etl validate Tmp_Export_pcsr0511_20261003155258.xlsx
+```
+
 ยิง SQL ดูข้อมูลดิบแบบ read-only:
 
 ```powershell
@@ -54,7 +68,7 @@ python -m venv .venv
 - [x] **เฟส 0** — Discovery: หาตารางจริง ยืนยันคีย์จับคู่ ตรวจคุณภาพข้อมูล
 - [x] SQL แกนกลาง `sql/extract/po_vs_rcv.sql` (ตรวจแล้ว 23,782 บรรทัด ปี 2024+)
 - [x] **เฟส 1** — ETL เข้าคลังข้อมูล (16 วินาที/รอบ) + cross-check Python vs T-SQL ผ่าน
-- [ ] **เฟส 2** — รายงานค้างรับ + รับเข้ารายวัน (Excel)
+- [x] **เฟส 2** — R1 ใบรับเข้ารายวัน + R2 ค้างรับ ออกเป็น Excel
 - [ ] **เฟส 3** — เว็บ Dashboard + ปุ่ม Export
 - [ ] **เฟส 4** — อีเมลสรุปอัตโนมัติ
 

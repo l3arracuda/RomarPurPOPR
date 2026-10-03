@@ -3,13 +3,18 @@ from __future__ import annotations
 
 import argparse
 
-from . import config, inspect as inspect_po, sync, validate as validate_rep
+from . import config, inspect as inspect_po, report, sync, validate as validate_rep
 
 
 def main() -> int:
     ap = argparse.ArgumentParser(prog="etl", description="ดึงข้อมูลจัดซื้อจาก ROM ERP")
-    ap.add_argument("command", choices=["sync", "verify", "inspect", "diff", "validate"])
+    ap.add_argument("command", choices=["sync", "verify", "inspect", "diff", "validate", "report"])
     ap.add_argument("pono", nargs="*", help="เลขที่ใบสั่งซื้อ (สำหรับ inspect)")
+    ap.add_argument("--from", dest="dfrom", default="", help="วันเริ่ม (R1)")
+    ap.add_argument("--to", dest="dto", default="", help="วันสิ้นสุด (R1)")
+    ap.add_argument("--supplier", default="", help="กรองผู้ขาย (R2)")
+    ap.add_argument("--buyer", default="", help="กรองผู้สั่งซื้อ (R2)")
+    ap.add_argument("-o", "--out", default="", help="ชื่อไฟล์ผลลัพธ์")
     ap.add_argument("--closed", default="", help="เลขที่ PO ที่ปิดแล้ว คั่นด้วยจุลภาค")
     ap.add_argument("--open", dest="open_", default="", help="เลขที่ PO ที่ยังไม่ปิด")
     ap.add_argument("--since", default=config.DEFAULT_WINDOW_START,
@@ -17,6 +22,17 @@ def main() -> int:
     ap.add_argument("--tolerance", type=float, default=0.02,
                     help="ผ่อนผันตอนตัดสินป้ายสถานะ 0.02 = บวกลบ 2%%")
     args = ap.parse_args()
+
+    if args.command == "report":
+        import datetime as _dt
+        which = (args.pono[0] if args.pono else "r2").lower()
+        if which == "r1":
+            dto = args.dto or _dt.date.today().isoformat()
+            dfrom = args.dfrom or (_dt.date.fromisoformat(dto) - _dt.timedelta(days=30)).isoformat()
+            report.r1(dfrom, dto, args.out or None)
+        else:
+            report.r2(args.out or None, args.supplier, args.buyer)
+        return 0
 
     if args.command == "validate":
         return validate_rep.run(args.pono[0])
