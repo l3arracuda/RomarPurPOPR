@@ -22,11 +22,14 @@ _EMPTY_DATE = dt.datetime(1899, 12, 30)
 PO_STATUS = {
     "P": "ใช้งาน",
     "A": "รออนุมัติ",
-    "T": "ปิด/ยกเลิก",
-    "C": "ปิด/ยกเลิก (เลิกใช้แล้ว)",
+    "T": "ใช้งาน (APPSTS=T ยังไม่ทราบความหมาย)",
+    "C": "เลิกใช้แล้ว (พบเฉพาะก่อนปี 2017)",
 }
-# สถานะที่ไม่ควรนับเป็นของค้างรับ
-_NOT_OPEN = {"A", "T", "C"}
+
+# เดิมเคยเข้าใจว่า APPSTS = T คือยกเลิก แต่พิสูจน์แล้วว่าผิด:
+# PP1-69-02718 มี APPSTS=T และรายงานของ ERP เองแสดงว่า "ค้างรับ" 4,000 เมตร
+# จึงนับ T เป็นใบที่ใช้งานปกติ เหลือแค่ A (รออนุมัติ) ที่ไม่นับเป็นของค้างรับ
+_PENDING = {"A"}
 
 
 def _d(v: Any) -> dt.datetime | None:
@@ -83,7 +86,7 @@ COLUMNS = [
     "SupCd", "SupNam", "PoSeq", "PdtCd", "PdtNam", "PdtGrp",
     "ShipDat", "OrderQty", "Unit", "PackSize", "Price", "OrderAmt",
     "RcvQty", "RcvAmt", "RetQty", "OpenQty", "OpenAmt", "FillPct",
-    "LineStatus", "IsOpen", "FirstRcvDat", "LastRcvDat", "RcvYm", "RcvDocCount",
+    "LineStatus", "ErpStatus", "IsOpen", "FirstRcvDat", "LastRcvDat", "RcvYm", "RcvDocCount",
     "LeadTimeDays", "DaysLate", "OverdueDays", "ErpRcvQty", "ErpRcvQtyMismatch",
 ]
 
@@ -111,8 +114,8 @@ def _write(eng, poh, sup, pdt, agg, tol) -> int:
         first = a["first"] if a else None
         po_dat = _d(head["DOCDAT"])
 
-        if status in _NOT_OPEN:
-            line_status = PO_STATUS.get(status, status)
+        if status in _PENDING:
+            line_status = "รออนุมัติ"
         elif rcv_qty <= 0:
             line_status = "ยังไม่รับ"
         elif rcv_qty > order_qty * (1 + tol):
@@ -123,8 +126,10 @@ def _write(eng, poh, sup, pdt, agg, tol) -> int:
             line_status = "รับบางส่วน"
 
         is_open = int(
-            status not in _NOT_OPEN and rcv_qty < order_qty * (1 - tol)
+            status not in _PENDING and rcv_qty < order_qty * (1 - tol)
         )
+        # คำเดียวกับรายงานที่จัดซื้อใช้อยู่ใน ERP เพื่อให้เทียบกันได้ตรง ๆ
+        erp_status = "รออนุมัติ" if status in _PENDING else ("ค้างรับ" if is_open else "ปิด")
         overdue = _days(ship, today) if (is_open and ship and ship < today) else None
         erp_rcv = float(d["RCVQTY"] or 0)
 
@@ -140,7 +145,7 @@ def _write(eng, poh, sup, pdt, agg, tol) -> int:
             rcv_qty, rcv_qty * price, float(a["ret"]) if a else 0.0,
             open_qty, open_qty * price,
             (rcv_qty / order_qty) if order_qty else None,
-            line_status, is_open,
+            line_status, erp_status, is_open,
             first, a["last"] if a else None, _ym(first),
             len(a["docs"]) if a else 0,
             _days(po_dat, first), _days(ship, first), overdue,

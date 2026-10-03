@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import time
 
-from . import config, extract, source, transform, warehouse
+from . import config, extract, quality, source, transform, warehouse
 
 
 def run(window_start: str = config.DEFAULT_WINDOW_START, tolerance: float = 0.02) -> dict:
@@ -26,6 +26,11 @@ def run(window_start: str = config.DEFAULT_WINDOW_START, tolerance: float = 0.02
 
     counts["fact_po_line"] = transform.build(eng, tolerance)
     print(f"  {'fact_po_line':<12} {counts['fact_po_line']:>8,} แถว")
+
+    print("ตรวจคุณภาพข้อมูล")
+    for name, (sev, n) in quality.run(eng).items():
+        mark = "  !!" if (n and sev == "สูง") else "    "
+        print(f"{mark} {name:<22} {sev:<5} {n:>6,}")
 
     counts["_seconds"] = round(time.perf_counter() - t0, 1)
     return counts
