@@ -24,17 +24,36 @@
 
 ## เริ่มใช้งาน
 
+ติดตั้งครั้งแรก:
+
 ```powershell
-copy .env.example .env     # แล้วใส่ค่าจริง  ( .env ถูก gitignore ไว้ )
-.\tools\query.ps1 -Sql "SELECT TOP 5 DOCNO, DOCDAT FROM POC_POH ORDER BY DOCDAT DESC"
-.\tools\query.ps1 -File .\sql\extract\po_vs_rcv.sql -Csv .\out\po_vs_rcv.csv
+copy .env.example .env
+python -m venv .venv
+.\.venv\Scripts\pip install -r requirements.txt
+```
+
+ดึงข้อมูลเข้าคลัง แล้วตรวจว่าตรรกะถูกต้อง:
+
+```powershell
+.\.venv\Scripts\python -m etl sync
+.\.venv\Scripts\python -m etl verify
+```
+
+`sync` ใช้เวลาประมาณ 16 วินาที โหลดใหม่ทั้งหน้าต่าง 2024+ ทุกรอบ จึงรันซ้ำได้ผลเท่าเดิมเสมอ
+`verify` เทียบผลลัพธ์ฝั่ง Python กับ T-SQL ทีละบรรทัด ถ้าตรรกะสองทางไม่ตรงกันจะฟ้องทันที
+
+ยิง SQL ดูข้อมูลดิบแบบ read-only:
+
+```powershell
+.	ools\query.ps1 -Sql "SELECT TOP 5 DOCNO, DOCDAT FROM POC_POH ORDER BY DOCDAT DESC"
+.	ools\query.ps1 -File .\sql\extract\po_vs_rcv.sql -Csv .\out\po_vs_rcv.csv
 ```
 
 ## สถานะโครงการ
 
 - [x] **เฟส 0** — Discovery: หาตารางจริง ยืนยันคีย์จับคู่ ตรวจคุณภาพข้อมูล
-- [x] SQL แกนกลาง `sql/extract/po_vs_rcv.sql` (ตรวจแล้ว 23,778 บรรทัด ปี 2024+)
-- [ ] **เฟส 1** — ETL เข้าคลังข้อมูล
+- [x] SQL แกนกลาง `sql/extract/po_vs_rcv.sql` (ตรวจแล้ว 23,782 บรรทัด ปี 2024+)
+- [x] **เฟส 1** — ETL เข้าคลังข้อมูล (16 วินาที/รอบ) + cross-check Python vs T-SQL ผ่าน
 - [ ] **เฟส 2** — รายงานค้างรับ + รับเข้ารายวัน (Excel)
 - [ ] **เฟส 3** — เว็บ Dashboard + ปุ่ม Export
 - [ ] **เฟส 4** — อีเมลสรุปอัตโนมัติ
@@ -45,6 +64,8 @@ copy .env.example .env     # แล้วใส่ค่าจริง  ( .env 
 docs/     เอกสารออกแบบและพจนานุกรมข้อมูล
 sql/      SQL ดึงข้อมูล (2008-compatible)
 tools/    เครื่องมือ read-only
+etl/      ดึงข้อมูลเข้าคลัง + ประกอบตาราง fact_po_line
 app/      เว็บแอป (เฟส 3)
+data/     คลังข้อมูล SQLite — gitignore ไว้
 out/      ผลลัพธ์ที่ดึงมา — gitignore ไว้
 ```

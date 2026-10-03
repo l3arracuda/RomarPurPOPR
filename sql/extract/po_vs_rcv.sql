@@ -13,6 +13,8 @@
      - จับคู่ด้วย RCVH.PONO + RCVD.POSEQ = POD.DOCNO + POD.SEQ
        (ตรวจแล้ว orphan = 0 แถว)
      - 1899-12-30 คือวันที่ว่างของระบบเดิม ต้องแปลงเป็น NULL
+     - ห้ามครอบฟังก์ชันบนคอลัมน์ที่ใช้ join เด็ดขาด เครื่อง 2008 จะเลิกใช้ index
+       แล้ว scan เต็มตาราง ทำให้ query ค้างเป็นสิบนาที (เคยเจอมาแล้ว)
    ============================================================ */
 
 DECLARE @FromDat datetime, @ToDat datetime, @Tol float;
@@ -22,8 +24,8 @@ SET @Tol     = 0.02;           /* ผ่อนผัน 2% สำหรับง
 
 WITH rcv AS (
     SELECT
-        RTRIM(h.PONO)                AS PoNo,
-        RTRIM(d.POSEQ)               AS PoSeq,
+        h.PONO                       AS PoNo,
+        d.POSEQ                      AS PoSeq,
         SUM(d.QTY)                   AS RcvQtyNet,
         SUM(CASE WHEN h.DOCTYP = 'R' THEN d.QTY ELSE 0 END)  AS RcvQtyGross,
         SUM(CASE WHEN h.DOCTYP = 'T' THEN d.QTY ELSE 0 END)  AS RetQty,
@@ -33,26 +35,26 @@ WITH rcv AS (
     FROM POC_RCVH h
     JOIN POC_RCVD d ON d.DOCNO = h.DOCNO
     WHERE h.DOCTYP IN ('R', 'T')
-    GROUP BY RTRIM(h.PONO), RTRIM(d.POSEQ)
+    GROUP BY h.PONO, d.POSEQ
 )
 SELECT
     /* ---- ใบสั่งซื้อ ---- */
-    RTRIM(ph.DOCNO)                         AS PoNo,
+    LTRIM(RTRIM(ph.DOCNO))                         AS PoNo,
     ph.DOCDAT                               AS PoDat,
     ph.APPSTS                               AS PoStatus,
-    RTRIM(ph.ADDUSERID)                     AS Buyer,
-    RTRIM(ph.SUPCD)                         AS SupCd,
-    RTRIM(ISNULL(s.SUPNAM, ''))             AS SupNam,
-    RTRIM(pd.SEQ)                           AS PoSeq,
-    RTRIM(pd.PDTCD)                         AS PdtCd,
-    RTRIM(ISNULL(p.PDTNAM, ''))             AS PdtNam,
-    RTRIM(ISNULL(p.PDTGRP, ''))             AS PdtGrp,
+    LTRIM(RTRIM(ph.ADDUSERID))                     AS Buyer,
+    LTRIM(RTRIM(ph.SUPCD))                         AS SupCd,
+    LTRIM(RTRIM(ISNULL(s.SUPNAM, '')))             AS SupNam,
+    LTRIM(RTRIM(pd.SEQ))                           AS PoSeq,
+    LTRIM(RTRIM(pd.PDTCD))                         AS PdtCd,
+    LTRIM(RTRIM(ISNULL(p.PDTNAM, '')))             AS PdtNam,
+    LTRIM(RTRIM(ISNULL(p.PDTGRP, '')))             AS PdtGrp,
     NULLIF(pd.ShipDat,  '1899-12-30')       AS ShipDat,
     NULLIF(pd.sShipDat, '1899-12-30')       AS ShipDatOrig,
 
     /* ---- จำนวน / มูลค่า (ก่อน VAT) ---- */
     pd.QTY                                  AS OrderQty,
-    RTRIM(ISNULL(pd.UNIT, ''))              AS Unit,
+    LTRIM(RTRIM(ISNULL(pd.UNIT, '')))              AS Unit,
     ISNULL(pd.PACKSIZE, 1)                  AS PackSize,
     pd.PRICE                                AS Price,
     pd.AMT                                  AS OrderAmt,
@@ -93,8 +95,8 @@ SELECT
 
 FROM POC_POD pd
 JOIN POC_POH ph ON ph.DOCNO = pd.DOCNO
-LEFT JOIN rcv     r ON r.PoNo = RTRIM(pd.DOCNO) AND r.PoSeq = RTRIM(pd.SEQ)
-LEFT JOIN APC_SUP s ON RTRIM(s.SUPCD) = RTRIM(ph.SUPCD)
-LEFT JOIN INV_PDT p ON RTRIM(p.PDTCD) = RTRIM(pd.PDTCD)
+LEFT JOIN rcv     r ON r.PoNo = pd.DOCNO AND r.PoSeq = pd.SEQ
+LEFT JOIN APC_SUP s ON s.SUPCD = ph.SUPCD
+LEFT JOIN INV_PDT p ON p.PDTCD = pd.PDTCD
 WHERE ph.DOCDAT >= @FromDat AND ph.DOCDAT < @ToDat
 ORDER BY ph.DOCDAT DESC, ph.DOCNO, pd.SEQ;
