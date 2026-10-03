@@ -19,12 +19,15 @@ from . import warehouse
 # ค่าว่างของ TDateTime ในระบบเดิม
 _EMPTY_DATE = dt.datetime(1899, 12, 30)
 
+# APPSTS คือธงสถานะงานของใบสั่งซื้อ พิสูจน์จากรายงาน pcsr0511 จำนวน 687 บรรทัด
+# ลงตัวทุกบรรทัดไม่มีข้อยกเว้น  P = ปิดงานแล้ว  ส่วน A กับ T = ยังเปิดอยู่
 PO_STATUS = {
-    "P": "ใช้งาน",
-    "A": "รออนุมัติ",
-    "T": "ใช้งาน (APPSTS=T ยังไม่ทราบความหมาย)",
+    "P": "ปิดงานแล้ว",
+    "A": "เปิดอยู่ (ยังไม่เคยรับ)",
+    "T": "เปิดอยู่ (รับบางส่วนแล้ว)",
     "C": "เลิกใช้แล้ว (พบเฉพาะก่อนปี 2017)",
 }
+CLOSED = "P"
 
 # เดิมเคยเข้าใจว่า APPSTS = T คือยกเลิก แต่พิสูจน์แล้วว่าผิด:
 # PP1-69-02718 มี APPSTS=T และรายงานของ ERP เองแสดงว่า "ค้างรับ" 4,000 เมตร
@@ -87,7 +90,8 @@ COLUMNS = [
     "PoNo", "PoDat", "PoYm", "PoStatus", "PoStatusName", "Buyer",
     "SupCd", "SupNam", "PoSeq", "PdtCd", "PdtNam", "PdtGrp",
     "ShipDat", "OrderQty", "Unit", "PackSize", "Price", "OrderAmt",
-    "RcvQty", "RcvAmt", "RetQty", "OpenQty", "OpenAmt", "FillPct",
+    "RcvQty", "RcvAmt", "RetQty", "RcvQtyNet", "OpenQty", "OpenAmt",
+    "OpenQtyNet", "FillPct",
     "LineStatus", "ErpStatus", "IsOpen", "FirstRcvDat", "LastRcvDat", "RcvYm", "RcvDocCount",
     "LeadTimeDays", "DaysLate", "OverdueDays", "ErpRcvQty", "ErpRcvQtyMismatch",
 ]
@@ -109,15 +113,21 @@ def _write(eng, poh, sup, pdt, agg, tol) -> int:
         a = agg.get((d["DOCNO"], d["SEQ"]))
         order_qty = float(d["QTY"] or 0)
         price = float(d["PRICE"] or 0)
-        rcv_qty = float(a["qty"]) if a else 0.0
+        # ERP นับ "รับแล้ว" แบบไม่หักส่งคืน (ตรวจแล้วว่า qtyrcv = POC_POD.RCVQTY
+        # ซึ่งรวมเฉพาะใบ PR1) เราจึงให้คอลัมน์หลักตรงกับ ERP เพื่อให้กระทบยอดกันได้
+        # แล้วแยกยอดสุทธิไว้อีกคอลัมน์สำหรับคนที่อยากเห็นความจริง
+        ret_qty = float(a["ret"]) if a else 0.0           # ติดลบอยู่แล้ว
+        rcv_qty = (float(a["qty"]) - ret_qty) if a else 0.0  # รับเข้า ไม่หักคืน
+        rcv_net = rcv_qty + ret_qty
         open_qty = max(order_qty - rcv_qty, 0.0)
+        open_net = max(order_qty - rcv_net, 0.0)
         status = head["APPSTS"]
         ship = _d(d["ShipDat"])
         first = a["first"] if a else None
         po_dat = _d(head["DOCDAT"])
 
-        if status in _PENDING:
-            line_status = "รออนุมัติ"
+        if status == CLOSED and open_qty > 0.005:
+            line_status = "ปิดด้วยมือ (ยังค้าง)"
         elif rcv_qty <= 0:
             line_status = "ยังไม่รับ"
         elif rcv_qty > order_qty * (1 + tol):
@@ -127,10 +137,11 @@ def _write(eng, poh, sup, pdt, agg, tol) -> int:
         else:
             line_status = "รับบางส่วน"
 
-        # ErpStatus เลียนแบบรายงาน pcsr0511 ของ ERP แบบเป๊ะ ๆ เพื่อให้เทียบกันได้
-        # พิสูจน์แล้วว่ารายงานนั้น *ไม่สนใจ* APPSTS เลย ใบที่ยังรออนุมัติ (A)
-        # ก็ยังถูกนับเป็นค้างรับ และไม่มีการผ่อนผัน ขาดแม้แต่หน่วยเดียวก็ค้างรับ
-        is_open = int(open_qty > 0.005)
+        # กฎเดียวกับรายงาน pcsr0511 ของ ERP (ตรวจแล้ว 687/687 บรรทัด):
+        #   ค้างรับ  ก็ต่อเมื่อ  APPSTS != P  และยังมียอดค้าง
+        #   ปิด      ในกรณีอื่นทั้งหมด รวมถึงใบที่ APPSTS = P แต่ยังค้างอยู่
+        #            ซึ่งคือการ "ปิดด้วยมือ" ที่จัดซื้อทำเมื่อตัดสินใจว่าจบงานแล้ว
+        is_open = int(status != CLOSED and open_qty > 0.005)
         erp_status = "ค้างรับ" if is_open else "ปิด"
         overdue = _days(ship, today) if (is_open and ship and ship < today) else None
         erp_rcv = float(d["RCVQTY"] or 0)
@@ -144,8 +155,8 @@ def _write(eng, poh, sup, pdt, agg, tol) -> int:
             (pdt.get(d["PDTCD"]) or {}).get("PDTGRP"),
             ship, order_qty, d["UNIT"], float(d["PACKSIZE"] or 1), price,
             float(d["AMT"] or 0),
-            rcv_qty, rcv_qty * price, float(a["ret"]) if a else 0.0,
-            open_qty, open_qty * price,
+            rcv_qty, rcv_qty * price, ret_qty, rcv_net,
+            open_qty, open_qty * price, open_net,
             (rcv_qty / order_qty) if order_qty else None,
             line_status, erp_status, is_open,
             first, a["last"] if a else None, _ym(first),

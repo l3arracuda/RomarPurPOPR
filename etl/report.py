@@ -34,6 +34,7 @@ R2_COLS = [
     ("ลำดับ", "PoSeq", 7, None), ("รหัสสินค้า", "PdtCd", 19, None),
     ("ชื่อสินค้า", "PdtNam", 36, None), ("กำหนดส่ง", "ShipDat", 11, "date"),
     ("จำนวนสั่ง", "OrderQty", 12, "qty"), ("รับแล้ว", "RcvQty", 12, "qty"),
+    ("ส่งคืน", "RetQty", 11, "qty"), ("รับสุทธิ", "RcvQtyNet", 12, "qty"),
     ("คงค้าง", "OpenQty", 12, "qty"), ("หน่วย", "Unit", 8, None),
     ("ราคา", "Price", 10, "qty"), ("มูลค่าค้าง", "OpenAmt", 14, "money"),
     ("%รับ", "FillPct", 8, "pct"), ("สถานะ", "LineStatus", 12, None),
