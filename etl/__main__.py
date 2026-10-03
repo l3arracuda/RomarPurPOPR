@@ -3,12 +3,12 @@ from __future__ import annotations
 
 import argparse
 
-from . import config, inspect as inspect_po, sync
+from . import config, inspect as inspect_po, sync, validate as validate_rep
 
 
 def main() -> int:
     ap = argparse.ArgumentParser(prog="etl", description="ดึงข้อมูลจัดซื้อจาก ROM ERP")
-    ap.add_argument("command", choices=["sync", "verify", "inspect", "diff"])
+    ap.add_argument("command", choices=["sync", "verify", "inspect", "diff", "validate"])
     ap.add_argument("pono", nargs="*", help="เลขที่ใบสั่งซื้อ (สำหรับ inspect)")
     ap.add_argument("--closed", default="", help="เลขที่ PO ที่ปิดแล้ว คั่นด้วยจุลภาค")
     ap.add_argument("--open", dest="open_", default="", help="เลขที่ PO ที่ยังไม่ปิด")
@@ -17,6 +17,9 @@ def main() -> int:
     ap.add_argument("--tolerance", type=float, default=0.02,
                     help="ผ่อนผันตอนตัดสินป้ายสถานะ 0.02 = บวกลบ 2%%")
     args = ap.parse_args()
+
+    if args.command == "validate":
+        return validate_rep.run(args.pono[0])
 
     if args.command == "inspect":
         inspect_po.show(args.pono)

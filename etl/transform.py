@@ -125,11 +125,11 @@ def _write(eng, poh, sup, pdt, agg, tol) -> int:
         else:
             line_status = "รับบางส่วน"
 
-        is_open = int(
-            status not in _PENDING and rcv_qty < order_qty * (1 - tol)
-        )
-        # คำเดียวกับรายงานที่จัดซื้อใช้อยู่ใน ERP เพื่อให้เทียบกันได้ตรง ๆ
-        erp_status = "รออนุมัติ" if status in _PENDING else ("ค้างรับ" if is_open else "ปิด")
+        # ErpStatus เลียนแบบรายงาน pcsr0511 ของ ERP แบบเป๊ะ ๆ เพื่อให้เทียบกันได้
+        # พิสูจน์แล้วว่ารายงานนั้น *ไม่สนใจ* APPSTS เลย ใบที่ยังรออนุมัติ (A)
+        # ก็ยังถูกนับเป็นค้างรับ และไม่มีการผ่อนผัน ขาดแม้แต่หน่วยเดียวก็ค้างรับ
+        is_open = int(open_qty > 0.005)
+        erp_status = "ค้างรับ" if is_open else "ปิด"
         overdue = _days(ship, today) if (is_open and ship and ship < today) else None
         erp_rcv = float(d["RCVQTY"] or 0)
 
