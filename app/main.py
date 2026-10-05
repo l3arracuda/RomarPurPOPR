@@ -9,8 +9,10 @@ from __future__ import annotations
 
 import datetime as dt
 import io
+import os
 import re
 import threading
+import time
 from urllib.parse import quote
 
 from fastapi import FastAPI, Query
@@ -23,7 +25,44 @@ from . import queries
 app = FastAPI(title="รายงานจัดซื้อ ROMAR", docs_url=None, redoc_url=None)
 STATIC = config.ROOT / "app" / "static"
 _sync_lock = threading.Lock()
-_sync_state: dict = {"running": False, "last": None, "error": None}
+_sync_state: dict = {"running": False, "last": None, "error": None, "stamp": 0}
+
+SYNC_MINUTES = int(os.getenv("SYNC_INTERVAL_MINUTES", "15"))
+
+
+def _do_sync() -> bool:
+    """ดึงข้อมูลหนึ่งรอบ คืน False ถ้ามีรอบอื่นทำอยู่
+
+    ล็อกไว้ไม่ให้ยิงซ้อนกัน เพราะปลายทางคือเครื่อง ERP ที่บอบบาง
+    ต่อให้มีคนกดปุ่มพร้อมกันสิบคน ก็จะมีแค่รอบเดียวที่วิ่งจริง
+    """
+    if not _sync_lock.acquire(blocking=False):
+        return False
+    _sync_state.update(running=True, error=None)
+    try:
+        sync.run()
+        _sync_state["last"] = dt.datetime.now().strftime("%d/%m/%Y %H:%M")
+        _sync_state["stamp"] = int(time.time())
+    except Exception as exc:                          # noqa: BLE001
+        _sync_state["error"] = str(exc)
+    finally:
+        _sync_state["running"] = False
+        _sync_lock.release()
+    return True
+
+
+def _scheduler() -> None:
+    """ดึงข้อมูลหนึ่งรอบตอนเปิดแอป แล้ววนทุก SYNC_INTERVAL_MINUTES นาที"""
+    _do_sync()
+    while True:
+        time.sleep(SYNC_MINUTES * 60)
+        _do_sync()
+
+
+@app.on_event("startup")
+def _start_scheduler() -> None:
+    threading.Thread(target=_scheduler, daemon=True).start()
+    print(f"ตั้งเวลาดึงข้อมูลอัตโนมัติทุก {SYNC_MINUTES} นาที")
 
 
 @app.get("/")
@@ -47,7 +86,7 @@ def meta():
         "suppliers": queries.suppliers(),
         "buyers": queries.buyers(),
         "today": dt.date.today().isoformat(),
-        "sync": _sync_state,
+        "sync": {**_sync_state, "every_minutes": SYNC_MINUTES},
     }
 
 
@@ -132,21 +171,9 @@ def _send(path):
 @app.post("/api/sync")
 def do_sync():
     """ดึงข้อมูลใหม่จาก ERP — ทำทีละคนเท่านั้น กันไม่ให้ยิงซ้อนใส่เครื่อง production"""
-    if not _sync_lock.acquire(blocking=False):
+    if _sync_state["running"]:
         return JSONResponse({"ok": False, "msg": "กำลังอัปเดตอยู่ กรุณารอสักครู่"}, 409)
-
-    def work():
-        _sync_state.update(running=True, error=None)
-        try:
-            sync.run()
-            _sync_state["last"] = dt.datetime.now().strftime("%d/%m/%Y %H:%M")
-        except Exception as exc:                      # noqa: BLE001
-            _sync_state["error"] = str(exc)
-        finally:
-            _sync_state["running"] = False
-            _sync_lock.release()
-
-    threading.Thread(target=work, daemon=True).start()
+    threading.Thread(target=_do_sync, daemon=True).start()
     return {"ok": True, "msg": "เริ่มอัปเดตข้อมูลแล้ว ใช้เวลาประมาณ 20 วินาที"}
 
 

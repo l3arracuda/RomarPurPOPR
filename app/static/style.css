@@ -115,3 +115,6 @@ tr.drill > td{background:#f7f9fc;padding:12px 16px;white-space:normal}
 .bar1,.bar2{cursor:pointer;transition:filter .12s}
 .bargrp:hover .bar1,.bargrp:hover .bar2{filter:brightness(1.12)}
 .bar1:hover,.bar2:hover{filter:brightness(1.25)}
+
+.toast.clickable{cursor:pointer;background:var(--brand);box-shadow:0 4px 18px rgba(47,84,150,.45)}
+.toast.clickable:hover{background:#3b63a8}

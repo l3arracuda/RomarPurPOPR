@@ -10,6 +10,7 @@ const date = v => { if (!v) return ""; const d = new Date(v);
 const baht = v => num(v, 2) + " ฿";
 
 let TAB = "overview", SORT = { receipts: null, open: null, po: null }, CACHE = {};
+let LAST_STAMP = 0;
 
 const RCV_COLS = [
   ["วันที่รับ","RcvDat","date"], ["เลขที่ใบรับ","RcvNo"], ["ประเภท","DocTypName"],
@@ -225,9 +226,40 @@ async function render() {
   }
 }
 
-function toast(msg, ms = 3500) {
-  const t = $("#toast"); t.textContent = msg; t.classList.remove("hidden");
+function toast(msg, ms = 3500, onClick) {
+  const t = $("#toast"); t.textContent = msg;
+  t.classList.toggle("clickable", !!onClick);
+  t.onclick = onClick ? () => { t.classList.add("hidden"); onClick(); } : null;
+  t.classList.remove("hidden");
   clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.add("hidden"), ms);
+}
+
+function showSync(sy) {
+  const el = $("#syncinfo");
+  if (sy.running) { el.textContent = "กำลังอัปเดตข้อมูล…"; return; }
+  el.textContent = sy.last
+    ? `อัปเดตล่าสุด ${sy.last} · ดึงใหม่อัตโนมัติทุก ${sy.every_minutes} นาที`
+    : "ยังไม่เคยอัปเดต";
+}
+
+/** คอยดูว่ามีข้อมูลรอบใหม่เข้ามาหรือยัง
+ *
+ *  ถ้าผู้ใช้อยู่หน้าภาพรวมก็รีเฟรชให้เลย เพราะไม่มีอะไรให้เสีย
+ *  แต่ถ้ากำลังดูตารางอยู่ จะไม่ดึงพรมออกจากใต้เท้า เพราะอาจกางรายการ
+ *  หรือเรียงคอลัมน์ค้างไว้ ขึ้นเป็นข้อความให้กดเองแทน
+ */
+function watchSync() {
+  setInterval(async () => {
+    try {
+      const m = await fetch("/api/meta").then((r) => r.json());
+      showSync(m.sync);
+      if (m.sync.stamp && m.sync.stamp !== LAST_STAMP) {
+        LAST_STAMP = m.sync.stamp;
+        if (TAB === "overview") invalidate();
+        else toast("มีข้อมูลใหม่จาก ERP แล้ว — กดที่นี่เพื่อโหลด", 12000, invalidate);
+      }
+    } catch (e) { /* เครือข่ายสะดุดชั่วคราว รอรอบหน้า */ }
+  }, 30000);
 }
 
 // toISOString() แปลงเป็น UTC ซึ่งร่นวันที่ของไทยไป 1 วัน ต้องประกอบเองจากเวลาท้องถิ่น
@@ -257,7 +289,9 @@ async function boot() {
     const o = el("option", null, b.Buyer); o.value = b.Buyer; $("#buyer").appendChild(o);
   });
   preset("tm");
-  if (meta.sync.last) $("#syncinfo").textContent = "อัปเดตล่าสุด " + meta.sync.last;
+  LAST_STAMP = meta.sync.stamp || 0;
+  showSync(meta.sync);
+  watchSync();
 
   document.querySelectorAll(".tab").forEach(t => t.onclick = () => {
     document.querySelectorAll(".tab").forEach(x => x.classList.remove("active"));
@@ -288,9 +322,10 @@ async function boot() {
       const m = await fetch("/api/meta").then(r => r.json());
       if (!m.sync.running) {
         clearInterval(poll); b.disabled = false; b.textContent = "อัปเดตข้อมูลจาก ERP";
+        LAST_STAMP = m.sync.stamp || LAST_STAMP;
+        showSync(m.sync);
         if (m.sync.error) toast("อัปเดตไม่สำเร็จ: " + m.sync.error, 8000);
-        else { $("#syncinfo").textContent = "อัปเดตล่าสุด " + m.sync.last;
-               toast("อัปเดตข้อมูลเรียบร้อย"); invalidate(); }
+        else { toast("อัปเดตข้อมูลเรียบร้อย"); invalidate(); }
       }
     }, 2000);
   };
