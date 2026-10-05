@@ -33,3 +33,7 @@ venv/
 Thumbs.db
 desktop.ini
 *.log
+
+# ---- Node ----
+node_modules/
+package-lock.json
