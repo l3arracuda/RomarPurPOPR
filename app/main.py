@@ -70,7 +70,7 @@ def receipts(date_from: str = Query(...), date_to: str = Query(...),
 @app.get("/api/open")
 def open_po(supplier: str = "", buyer: str = "", q: str = "",
             overdue_only: bool = False, kind: str = "ใบสั่งซื้อ"):
-    return queries.open_po(supplier, buyer, q, overdue_only, kind)
+    return queries.open_docs(supplier, buyer, q, overdue_only, kind)
 
 
 @app.get("/api/receipts/docs")

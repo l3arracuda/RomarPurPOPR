@@ -20,12 +20,11 @@ const RCV_COLS = [
   ["เอกสารผู้ขาย","SupDocNo"], ["ผู้บันทึก","Enterer"], ["หมายเหตุ","Rem"],
 ];
 const OPEN_COLS = [
-  ["เลขที่ PO","PoNo"], ["ชนิดเอกสาร","DocKind"], ["วันที่ PO","PoDat","date"], ["ผู้สั่ง","Buyer"],
-  ["ผู้ขาย","SupNam"], ["ลำดับ","PoSeq"], ["รหัสสินค้า","PdtCd"], ["ชื่อสินค้า","PdtNam"],
-  ["กำหนดส่ง","ShipDat","date"], ["จำนวนสั่ง","OrderQty","num"], ["รับแล้ว","RcvQty","num"],
-  ["ส่งคืน","RetQty","num"], ["คงค้าง","OpenQty","num"], ["หน่วย","Unit"],
-  ["มูลค่าค้าง","OpenAmt","num"], ["%รับ","FillPct","pct"], ["สถานะ","LineStatus"],
+  ["เลขที่ PO","PoNo","link"], ["วันที่ PO","PoDat","date"], ["ผู้สั่ง","Buyer"],
+  ["ผู้ขาย","SupNam"], ["รายการค้าง","OpenLines","int"],
+  ["มูลค่าค้าง","OpenAmt","num"], ["กำหนดส่ง","ShipDat","date"],
   ["เกินกำหนด(วัน)","OverdueDays","int"], ["รับล่าสุด","LastRcvDat","date"],
+  ["ครั้งที่รับ","RcvDocCount","int"],
 ];
 
 function fmt(v, kind) {
@@ -217,8 +216,12 @@ async function render() {
     p.set("kind", $("#kind").value);
     const rows = CACHE.open || (CACHE.open = await fetch("/api/open?" + p).then(r => r.json()));
     const amt = rows.reduce((a, r) => a + Number(r.OpenAmt || 0), 0);
-    $("#openmeta").textContent = `${int(rows.length)} บรรทัด · มูลค่าค้างรวม ${baht(amt)} · แถวแดงคือเกินกำหนดส่ง · ของค้างไม่ขึ้นกับช่วงวันที่ด้านบน`;
-    table($("#tblOpen"), OPEN_COLS, rows, "open");
+    const lines = rows.reduce((a, r) => a + Number(r.OpenLines || 0), 0);
+    $("#openmeta").textContent =
+      `${int(rows.length)} ใบสั่งซื้อ · ${int(lines)} บรรทัดที่ยังค้าง · มูลค่าค้างรวม ${baht(amt)}`
+      + ` · แถวแดงคือเกินกำหนดส่ง · ของค้างคิด ณ ปัจจุบัน ไม่ขึ้นกับช่วงวันที่ด้านบน`
+      + ` · คลิกที่เลขที่ PO เพื่อดูรายการและใบรับเข้า`;
+    tableExpandable($("#tblOpen"), OPEN_COLS, rows, "open", drillPo);
   }
 }
 

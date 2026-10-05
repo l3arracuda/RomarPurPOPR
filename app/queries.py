@@ -91,8 +91,13 @@ def receipts(date_from, date_to, supplier="", buyer="", q="", limit=5000) -> lis
         ORDER BY RcvDat DESC, RcvNo, RcvSeq LIMIT {int(limit)}""", {**p, **fp})
 
 
-def open_po(supplier="", buyer="", q="", overdue_only=False, kind="ใบสั่งซื้อ",
-            limit=5000) -> list[dict]:
+def open_docs(supplier="", buyer="", q="", overdue_only=False,
+              kind="ใบสั่งซื้อ", limit=5000) -> list[dict]:
+    """ของค้างรับ สรุปเป็นระดับ 'ใบสั่งซื้อ'
+
+    นับเฉพาะบรรทัดที่ยังค้างจริง (IsOpen = 1) ดังนั้นมูลค่าและจำนวนรายการ
+    ที่เห็นคือยอดค้างล้วน ๆ ไม่ปนบรรทัดที่ปิดไปแล้วในใบเดียวกัน
+    """
     eng = warehouse.engine()
     where, fp = _filters(supplier, buyer, q)
     if kind:
@@ -101,8 +106,14 @@ def open_po(supplier="", buyer="", q="", overdue_only=False, kind="ใบสั�
     if overdue_only:
         where += " AND OverdueDays > 0"
     return warehouse.read(eng, f"""
-        SELECT * FROM fact_po_line WHERE IsOpen = 1 {where}
-        ORDER BY ShipDat, PoNo, PoSeq LIMIT {int(limit)}""", fp)
+        SELECT PoNo, MIN(DocKind) DocKind, MIN(PoDat) PoDat, MIN(Buyer) Buyer,
+               MIN(SupCd) SupCd, MIN(SupNam) SupNam,
+               COUNT(*) OpenLines, SUM(OpenAmt) OpenAmt, SUM(OrderAmt) OrderAmt,
+               MIN(ShipDat) ShipDat, MAX(OverdueDays) OverdueDays,
+               MAX(LastRcvDat) LastRcvDat, SUM(RcvDocCount) RcvDocCount
+        FROM fact_po_line WHERE IsOpen = 1 {where}
+        GROUP BY PoNo
+        ORDER BY MIN(ShipDat), PoNo LIMIT {int(limit)}""", fp)
 
 
 def suppliers() -> list[dict]:
