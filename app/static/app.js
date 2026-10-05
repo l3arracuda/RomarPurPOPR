@@ -201,12 +201,19 @@ async function render() {
     $("#pometa").textContent =
       `${int(rows.length)} ใบสั่งซื้อ · มูลค่าสั่งรวม ${baht(ord)} · ค้างรวม ${baht(opn)}`
       + ` · คลิกที่เลขที่ PO เพื่อดูใบรับเข้าที่จับคู่กัน`;
-    tablePo($("#tblPo"), rows);
+    tableExpandable($("#tblPo"), PO_COLS, rows, "po", drillPo);
   } else if (TAB === "receipts") {
-    const rows = CACHE.rcv || (CACHE.rcv = await fetch("/api/receipts?" + params()).then(r => r.json()));
+    const rows = CACHE.rcv ||
+      (CACHE.rcv = await fetch("/api/receipts/docs?" + params()).then(r => r.json()));
+    rows.forEach(r => {
+      r.LocDisp = r.LocCount > 1 ? `หลายที่ (${r.LocCount})` : (r.LocCd || "");
+    });
     const amt = rows.reduce((a, r) => a + Number(r.Amt || 0), 0);
-    $("#rcvmeta").textContent = `${int(rows.length)} บรรทัด · มูลค่ารวม ${baht(amt)} · ยอดส่งคืนแสดงเป็นจำนวนติดลบ`;
-    table($("#tblRcv"), RCV_COLS, rows, "receipts");
+    const lines = rows.reduce((a, r) => a + Number(r.Lines || 0), 0);
+    $("#rcvmeta").textContent =
+      `${int(rows.length)} ใบรับ · ${int(lines)} บรรทัด · มูลค่ารวม ${baht(amt)}`
+      + ` · ใบส่งคืนแสดงเป็นจำนวนติดลบ · คลิกที่เลขที่ใบรับเพื่อดูรายการสินค้า`;
+    tableExpandable($("#tblRcv"), RCV_DOC_COLS, rows, "receipts", drillRcv);
   } else {
     const p = params(); p.delete("date_from"); p.delete("date_to");
     if ($("#overdue").checked) p.set("overdue_only", "true");
@@ -318,6 +325,30 @@ const PO_RCV_COLS = [
   ["ช้า(วัน)","DaysLate","int"], ["เอกสารผู้ขาย","SupDocNo"], ["ผู้บันทึก","Enterer"],
 ];
 
+const RCV_DOC_COLS = [
+  ["วันที่รับ","RcvDat","date"], ["เลขที่ใบรับ","RcvNo","link"], ["ประเภท","DocTypName"],
+  ["เลขที่ PO","PoNo"], ["ผู้ขาย","SupNam"], ["รายการ","Lines","int"],
+  ["มูลค่า","Amt","num"], ["ที่เก็บ","LocDisp"], ["เอกสารผู้ขาย","SupDocNo"],
+  ["ช้า(วัน)","DaysLate","int"], ["ผู้บันทึก","Enterer"],
+];
+
+const RCV_ITEM_COLS = [
+  ["ลำดับ","RcvSeq"], ["ลำดับ PO","PoSeq"], ["รหัสสินค้า","PdtCd"], ["ชื่อสินค้า","PdtNam"],
+  ["จำนวน","Qty","num"], ["หน่วย","Unit"], ["ราคา","Price","num"], ["มูลค่า","Amt","num"],
+  ["ที่เก็บ","LocCd"], ["กำหนดส่ง","ShipDat","date"], ["ช้า(วัน)","DaysLate","int"],
+];
+
+async function drillRcv(row, host) {
+  host.textContent = "กำลังโหลด…";
+  const items = await fetch("/api/receipts/detail?rcvno=" + encodeURIComponent(row.RcvNo))
+    .then(r => r.json());
+  host.textContent = "";
+  const box = el("div", "drillbox"), sec = el("div");
+  sec.append(el("h3", null, `รายการสินค้าในใบรับ ${row.RcvNo} (${items.length} บรรทัด)`),
+             miniTable(RCV_ITEM_COLS, items, "ไม่พบรายการ"));
+  box.append(sec); host.appendChild(box);
+}
+
 function miniTable(cols, rows, emptyMsg) {
   if (!rows.length) return el("div", "empty", emptyMsg);
   const t = el("table"), thead = el("thead"), tr = el("tr");
@@ -334,7 +365,8 @@ function miniTable(cols, rows, emptyMsg) {
   return t;
 }
 
-async function drill(pono, host) {
+async function drillPo(row, host) {
+  const pono = row.PoNo;
   host.textContent = "กำลังโหลด…";
   const d = await fetch("/api/po/detail?pono=" + encodeURIComponent(pono)).then(r => r.json());
   host.textContent = "";
@@ -350,23 +382,23 @@ async function drill(pono, host) {
   host.appendChild(box);
 }
 
-function tablePo(node, rows) {
+function tableExpandable(node, cols, rows, sortKey, loadDrill) {
   node.innerHTML = "";
   const thead = el("thead"), tr = el("tr");
-  PO_COLS.forEach(([title, field]) => {
+  cols.forEach(([title, field]) => {
     const th = el("th", null, title);
-    if (SORT.po && SORT.po.f === field) th.textContent = title + (SORT.po.d > 0 ? " ▲" : " ▼");
+    if (SORT[sortKey] && SORT[sortKey].f === field) th.textContent = title + (SORT[sortKey].d > 0 ? " ▲" : " ▼");
     th.onclick = () => {
-      const c = SORT.po;
-      SORT.po = { f: field, d: c && c.f === field ? -c.d : 1 };
-      tablePo(node, rows);
+      const c = SORT[sortKey];
+      SORT[sortKey] = { f: field, d: c && c.f === field ? -c.d : 1 };
+      tableExpandable(node, cols, rows, sortKey, loadDrill);
     };
     tr.appendChild(th);
   });
   thead.appendChild(tr); node.appendChild(thead);
 
   let data = rows.slice();
-  const s = SORT.po;
+  const s = SORT[sortKey];
   if (s) data.sort((a, b) => {
     const x = a[s.f], y = b[s.f];
     if (x == null) return 1; if (y == null) return -1;
@@ -380,7 +412,7 @@ function tablePo(node, rows) {
   data.forEach(r => {
     const row = el("tr");
     if (Number(r.OverdueDays) > 0) row.className = "overdue";
-    PO_COLS.forEach(([, field, kind]) => {
+    cols.forEach(([, field, kind]) => {
       let td;
       if (kind === "pill") {
         td = el("td");
@@ -395,14 +427,14 @@ function tablePo(node, rows) {
     tb.appendChild(row);
 
     const sub = el("tr", "drill hidden");
-    const cell = el("td"); cell.colSpan = PO_COLS.length;
+    const cell = el("td"); cell.colSpan = cols.length;
     sub.appendChild(cell); tb.appendChild(sub);
 
     row.querySelector("td.link").onclick = () => {
       const show = sub.classList.contains("hidden");
       sub.classList.toggle("hidden", !show);
       row.classList.toggle("expanded", show);
-      if (show && !cell.dataset.loaded) { cell.dataset.loaded = "1"; drill(r.PoNo, cell); }
+      if (show && !cell.dataset.loaded) { cell.dataset.loaded = "1"; loadDrill(r, cell); }
     };
   });
   node.appendChild(tb);

@@ -176,3 +176,37 @@ def po_detail(pono: str) -> dict:
             FROM fact_rcv_line WHERE PoNo = :p
             ORDER BY RcvDat, RcvNo, RcvSeq""", {"p": pono}),
     }
+
+
+def rcv_docs(date_from, date_to, supplier="", buyer="", q="", limit=5000) -> list[dict]:
+    """ใบรับเข้าระดับ 'ใบ' — ตารางหลักของหน้าใบรับเข้า
+
+    ไม่รวมยอดจำนวนที่ระดับใบ เพราะแต่ละบรรทัดอาจคนละหน่วย (หลา เมตร กก. ใบ)
+    บวกกันแล้วไม่มีความหมาย รวมเฉพาะมูลค่าซึ่งเป็นบาทเหมือนกันทุกบรรทัด
+    """
+    eng = warehouse.engine()
+    p = _range(date_from, date_to)
+    where, fp = _filters(supplier, "", q)
+    if buyer:
+        where += " AND PoNo IN (SELECT PoNo FROM fact_po_line WHERE Buyer = :buy)"
+        fp["buy"] = buyer
+    return warehouse.read(eng, f"""
+        SELECT RcvNo, MIN(RcvDat) RcvDat, MIN(DocTypName) DocTypName,
+               MIN(PoNo) PoNo, MIN(PoDat) PoDat, MIN(SupCd) SupCd, MIN(SupNam) SupNam,
+               COUNT(*) Lines, SUM(Amt) Amt,
+               COUNT(DISTINCT LocCd) LocCount, MIN(LocCd) LocCd,
+               MIN(SupDocNo) SupDocNo, MAX(DaysLate) DaysLate,
+               MIN(Enterer) Enterer, MIN(Rem) Rem
+        FROM fact_rcv_line
+        WHERE RcvDat >= :a AND RcvDat < :b {where}
+        GROUP BY RcvNo
+        ORDER BY MIN(RcvDat) DESC, RcvNo DESC LIMIT {int(limit)}""", {**p, **fp})
+
+
+def rcv_doc_detail(rcvno: str) -> list[dict]:
+    """รายการสินค้าในใบรับเข้าหนึ่งใบ สำหรับ drilldown"""
+    return warehouse.read(warehouse.engine(), """
+        SELECT RcvSeq, PoSeq, PdtCd, PdtNam, Qty, Unit, Price, Amt,
+               LocCd, ShipDat, DaysLate
+        FROM fact_rcv_line WHERE RcvNo = :r ORDER BY CAST(RcvSeq AS INTEGER)""",
+        {"r": rcvno})

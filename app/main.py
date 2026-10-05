@@ -73,6 +73,17 @@ def open_po(supplier: str = "", buyer: str = "", q: str = "",
     return queries.open_po(supplier, buyer, q, overdue_only, kind)
 
 
+@app.get("/api/receipts/docs")
+def receipt_docs(date_from: str = Query(...), date_to: str = Query(...),
+                 supplier: str = "", buyer: str = "", q: str = ""):
+    return queries.rcv_docs(date_from, date_to, supplier, buyer, q)
+
+
+@app.get("/api/receipts/detail")
+def receipt_detail(rcvno: str = Query(...)):
+    return queries.rcv_doc_detail(rcvno)
+
+
 @app.get("/api/po")
 def po_docs(date_from: str = Query(...), date_to: str = Query(...),
             supplier: str = "", buyer: str = "", q: str = "",
