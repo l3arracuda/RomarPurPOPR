@@ -205,9 +205,6 @@ async function render() {
   } else if (TAB === "receipts") {
     const rows = CACHE.rcv ||
       (CACHE.rcv = await fetch("/api/receipts/docs?" + params()).then(r => r.json()));
-    rows.forEach(r => {
-      r.LocDisp = r.LocCount > 1 ? `หลายที่ (${r.LocCount})` : (r.LocCd || "");
-    });
     const amt = rows.reduce((a, r) => a + Number(r.Amt || 0), 0);
     const lines = rows.reduce((a, r) => a + Number(r.Lines || 0), 0);
     $("#rcvmeta").textContent =
@@ -321,21 +318,21 @@ const PO_LINE_COLS = [
 const PO_RCV_COLS = [
   ["วันที่รับ","RcvDat","date"], ["เลขที่ใบรับ","RcvNo"], ["ประเภท","DocTypName"],
   ["ลำดับ PO","PoSeq"], ["รหัสสินค้า","PdtCd"], ["จำนวน","Qty","num"],
-  ["หน่วย","Unit"], ["มูลค่า","Amt","num"], ["ที่เก็บ","LocCd"],
+  ["หน่วย","Unit"], ["มูลค่า","Amt","num"],
   ["ช้า(วัน)","DaysLate","int"], ["เอกสารผู้ขาย","SupDocNo"], ["ผู้บันทึก","Enterer"],
 ];
 
 const RCV_DOC_COLS = [
   ["วันที่รับ","RcvDat","date"], ["เลขที่ใบรับ","RcvNo","link"], ["ประเภท","DocTypName"],
   ["เลขที่ PO","PoNo"], ["ผู้ขาย","SupNam"], ["รายการ","Lines","int"],
-  ["มูลค่า","Amt","num"], ["ที่เก็บ","LocDisp"], ["เอกสารผู้ขาย","SupDocNo"],
+  ["มูลค่า","Amt","num"], ["เอกสารผู้ขาย","SupDocNo"],
   ["ช้า(วัน)","DaysLate","int"], ["ผู้บันทึก","Enterer"],
 ];
 
 const RCV_ITEM_COLS = [
-  ["ลำดับ","RcvSeq"], ["ลำดับ PO","PoSeq"], ["รหัสสินค้า","PdtCd"], ["ชื่อสินค้า","PdtNam"],
+  ["ลำดับ","RcvSeq"], ["รหัสสินค้า","PdtCd"], ["ชื่อสินค้า","PdtNam"],
   ["จำนวน","Qty","num"], ["หน่วย","Unit"], ["ราคา","Price","num"], ["มูลค่า","Amt","num"],
-  ["ที่เก็บ","LocCd"], ["กำหนดส่ง","ShipDat","date"], ["ช้า(วัน)","DaysLate","int"],
+  ["กำหนดส่ง","ShipDat","date"], ["ช้า(วัน)","DaysLate","int"],
 ];
 
 async function drillRcv(row, host) {

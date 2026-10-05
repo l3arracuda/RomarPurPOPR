@@ -194,7 +194,6 @@ def rcv_docs(date_from, date_to, supplier="", buyer="", q="", limit=5000) -> lis
         SELECT RcvNo, MIN(RcvDat) RcvDat, MIN(DocTypName) DocTypName,
                MIN(PoNo) PoNo, MIN(PoDat) PoDat, MIN(SupCd) SupCd, MIN(SupNam) SupNam,
                COUNT(*) Lines, SUM(Amt) Amt,
-               COUNT(DISTINCT LocCd) LocCount, MIN(LocCd) LocCd,
                MIN(SupDocNo) SupDocNo, MAX(DaysLate) DaysLate,
                MIN(Enterer) Enterer, MIN(Rem) Rem
         FROM fact_rcv_line
@@ -207,6 +206,6 @@ def rcv_doc_detail(rcvno: str) -> list[dict]:
     """รายการสินค้าในใบรับเข้าหนึ่งใบ สำหรับ drilldown"""
     return warehouse.read(warehouse.engine(), """
         SELECT RcvSeq, PoSeq, PdtCd, PdtNam, Qty, Unit, Price, Amt,
-               LocCd, ShipDat, DaysLate
+               ShipDat, DaysLate
         FROM fact_rcv_line WHERE RcvNo = :r ORDER BY CAST(RcvSeq AS INTEGER)""",
         {"r": rcvno})
