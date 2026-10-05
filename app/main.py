@@ -14,7 +14,7 @@ import threading
 from urllib.parse import quote
 
 from fastapi import FastAPI, Query
-from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from etl import config, report, sync
@@ -28,7 +28,16 @@ _sync_state: dict = {"running": False, "last": None, "error": None}
 
 @app.get("/")
 def index():
-    return FileResponse(STATIC / "index.html")
+    """ส่งหน้าเว็บพร้อมติดหมายเลขรุ่นให้ไฟล์ css/js
+
+    ถ้าไม่ทำแบบนี้ เบราว์เซอร์จะใช้ไฟล์เก่าที่แคชไว้หลังอัปเดตโค้ด
+    ผู้ใช้จะเห็นหน้าเดิมและนึกว่าของใหม่ยังไม่มา ต้องสั่ง hard refresh เอง
+    """
+    html = (STATIC / "index.html").read_text(encoding="utf-8")
+    ver = int(max((STATIC / f).stat().st_mtime for f in ("app.js", "style.css")))
+    html = html.replace("/static/app.js", f"/static/app.js?v={ver}")
+    html = html.replace("/static/style.css", f"/static/style.css?v={ver}")
+    return HTMLResponse(html, headers={"Cache-Control": "no-store"})
 
 
 @app.get("/api/meta")
@@ -62,6 +71,19 @@ def receipts(date_from: str = Query(...), date_to: str = Query(...),
 def open_po(supplier: str = "", buyer: str = "", q: str = "",
             overdue_only: bool = False, kind: str = "ใบสั่งซื้อ"):
     return queries.open_po(supplier, buyer, q, overdue_only, kind)
+
+
+@app.get("/api/po")
+def po_docs(date_from: str = Query(...), date_to: str = Query(...),
+            supplier: str = "", buyer: str = "", q: str = "",
+            sort: str = "lastrcv", only_open: bool = False,
+            kind: str = "ใบสั่งซื้อ"):
+    return queries.po_docs(date_from, date_to, supplier, buyer, q, sort, only_open, kind)
+
+
+@app.get("/api/po/detail")
+def po_detail(pono: str = Query(...)):
+    return queries.po_detail(pono)
 
 
 @app.get("/api/export/r1")

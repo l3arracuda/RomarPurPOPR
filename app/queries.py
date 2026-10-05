@@ -121,3 +121,58 @@ def data_range() -> dict:
     r = warehouse.read(warehouse.engine(), """
         SELECT MIN(RcvDat) lo, MAX(RcvDat) hi FROM fact_rcv_line""")[0]
     return {"lo": str(r["lo"] or "")[:10], "hi": str(r["hi"] or "")[:10]}
+
+
+# เรียงลำดับที่เลือกได้จากหน้าเว็บ — จำกัดไว้เป็นรายการตายตัว ไม่รับค่าดิบจากผู้ใช้
+PO_SORTS = {
+    "lastrcv": "LastRcvDat DESC NULLS LAST, PoDat DESC",
+    "podat": "PoDat DESC, PoNo DESC",
+    "ship": "ShipDat, PoNo",
+    "openamt": "OpenAmt DESC",
+}
+
+
+def po_docs(date_from, date_to, supplier="", buyer="", q="",
+            sort="lastrcv", only_open=False, kind="ใบสั่งซื้อ", limit=5000) -> list[dict]:
+    """รายการสั่งซื้อระดับ 'ใบ' สำหรับตารางหลักของหน้าสั่งซื้อ"""
+    eng = warehouse.engine()
+    p = _range(date_from, date_to)
+    where, fp = _filters(supplier, buyer, q)
+    if kind:
+        where += " AND DocKind = :kind"
+        fp["kind"] = kind
+    order = PO_SORTS.get(sort, PO_SORTS["lastrcv"])
+    # SQLite รองรับ NULLS LAST แต่ SQL Server ไม่รองรับ จึงเลี่ยงด้วยคอลัมน์ช่วย
+    order = order.replace("LastRcvDat DESC NULLS LAST",
+                          "CASE WHEN LastRcvDat IS NULL THEN 1 ELSE 0 END, LastRcvDat DESC")
+    having = " HAVING SUM(IsOpen) > 0" if only_open else ""
+    return warehouse.read(eng, f"""
+        SELECT PoNo, DocKind, MIN(PoDat) PoDat, MIN(Buyer) Buyer,
+               MIN(SupCd) SupCd, MIN(SupNam) SupNam,
+               COUNT(*) Lines, SUM(OrderAmt) OrderAmt, SUM(RcvAmt) RcvAmt,
+               SUM(OpenAmt) OpenAmt, MIN(ShipDat) ShipDat,
+               MAX(LastRcvDat) LastRcvDat, SUM(RcvDocCount) RcvDocCount,
+               SUM(IsOpen) OpenLines, MAX(OverdueDays) OverdueDays,
+               CASE WHEN SUM(IsOpen) > 0 THEN 'ค้างรับ' ELSE 'ปิด' END ErpStatus
+        FROM fact_po_line
+        WHERE PoDat >= :a AND PoDat < :b {where}
+        GROUP BY PoNo, DocKind {having}
+        ORDER BY {order} LIMIT {int(limit)}""", {**p, **fp})
+
+
+def po_detail(pono: str) -> dict:
+    """รายละเอียดของใบสั่งซื้อหนึ่งใบ พร้อมใบรับเข้าที่อ้างถึง สำหรับ drilldown"""
+    eng = warehouse.engine()
+    return {
+        "lines": warehouse.read(eng, """
+            SELECT PoSeq, PdtCd, PdtNam, OrderQty, Unit, Price, OrderAmt,
+                   RcvQty, RetQty, OpenQty, FillPct, LineStatus, ShipDat,
+                   LastRcvDat, RcvDocCount, OverdueDays
+            FROM fact_po_line WHERE PoNo = :p ORDER BY CAST(PoSeq AS INTEGER)""",
+            {"p": pono}),
+        "receipts": warehouse.read(eng, """
+            SELECT RcvNo, RcvDat, DocTypName, PoSeq, PdtCd, PdtNam, Qty, Unit,
+                   Price, Amt, LocCd, DaysLate, SupDocNo, Enterer
+            FROM fact_rcv_line WHERE PoNo = :p
+            ORDER BY RcvDat, RcvNo, RcvSeq""", {"p": pono}),
+    }

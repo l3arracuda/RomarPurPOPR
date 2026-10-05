@@ -17,6 +17,7 @@
 
 <nav class="tabs">
   <button class="tab active" data-tab="overview">ภาพรวม</button>
+  <button class="tab" data-tab="po">สั่งซื้อ (PO)</button>
   <button class="tab" data-tab="receipts">ใบรับเข้า</button>
   <button class="tab" data-tab="open">ค้างรับ</button>
 </nav>
@@ -34,6 +35,14 @@
   <label>ผู้ขาย <select id="supplier"><option value="">ทั้งหมด</option></select></label>
   <label>ผู้สั่งซื้อ <select id="buyer"><option value="">ทั้งหมด</option></select></label>
   <label>ค้นหา <input type="search" id="q" placeholder="รหัส/ชื่อสินค้า หรือเลขที่ PO"></label>
+  <label id="sortwrap">เรียงตาม
+    <select id="sort">
+      <option value="lastrcv">รับเข้าล่าสุด</option>
+      <option value="podat">วันที่สั่งซื้อล่าสุด</option>
+      <option value="ship">กำหนดส่ง</option>
+      <option value="openamt">มูลค่าค้างมากสุด</option>
+    </select></label>
+  <label class="chk" id="openonlywrap"><input type="checkbox" id="onlyopen"> เฉพาะที่ยังค้างรับ</label>
   <label class="chk" id="odwrap"><input type="checkbox" id="overdue"> เฉพาะที่เกินกำหนด</label>
   <label id="kindwrap">ชนิดเอกสาร
     <select id="kind">
@@ -57,6 +66,11 @@
       <h2>การตรวจคุณภาพข้อมูล</h2>
       <div id="dq"></div>
     </div>
+  </div>
+
+  <div id="po" class="pane hidden">
+    <div class="card"><div id="pometa" class="muted small"></div>
+      <div class="tablewrap"><table id="tblPo"></table></div></div>
   </div>
 
   <div id="receipts" class="pane hidden">

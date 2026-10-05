@@ -86,3 +86,20 @@ tr.overdue{background:var(--bad-bg) !important}
 
 .toast{position:fixed;right:16px;bottom:16px;background:var(--ink);color:#fff;
   padding:11px 16px;border-radius:7px;box-shadow:0 4px 16px rgba(0,0,0,.25);z-index:9}
+
+/* ---- หน้าสั่งซื้อ: แถวที่กางรายละเอียดได้ ---- */
+td.link{color:var(--brand);font-weight:600;cursor:pointer;text-decoration:underline}
+td.link:hover{background:var(--accent)}
+tr.expanded{background:var(--accent) !important;font-weight:600}
+tr.drill > td{background:#f7f9fc;padding:12px 16px;white-space:normal}
+.drillbox{display:grid;gap:14px}
+.drillbox h3{margin:0 0 6px;font-size:13px;color:var(--brand)}
+.drillbox table{width:auto;min-width:min(100%,760px);font-size:12px;
+  border:1px solid var(--line);border-radius:5px;overflow:hidden}
+.drillbox th{position:static;background:#5578b5;font-size:12px;cursor:default}
+.drillbox th:hover{background:#5578b5}
+.drillbox td{background:#fff}
+.drillbox .empty{color:var(--muted);font-style:italic;padding:4px 0}
+.pill{display:inline-block;padding:1px 9px;border-radius:999px;font-size:11px;font-weight:600}
+.pill.open{background:#fdf3e2;color:var(--warn)}
+.pill.done{background:#e7f4ec;color:var(--good)}
