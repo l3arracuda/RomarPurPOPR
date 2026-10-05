@@ -9,7 +9,9 @@ from __future__ import annotations
 
 import datetime as dt
 import io
+import re
 import threading
+from urllib.parse import quote
 
 from fastapi import FastAPI, Query
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
@@ -75,11 +77,22 @@ def export_r2(supplier: str = "", buyer: str = "", kind: str = "ใบสั่�
 
 
 def _send(path):
+    """ส่งไฟล์ Excel กลับไปให้เบราว์เซอร์
+
+    ชื่อไฟล์เป็นภาษาไทย ซึ่งใส่ลง HTTP header ตรง ๆ ไม่ได้เพราะ header รองรับแค่
+    latin-1 จึงต้องส่งสองแบบคู่กันตาม RFC 5987 คือชื่อสำรองที่เป็น ASCII ล้วน
+    สำหรับเบราว์เซอร์เก่า และ filename* ที่เข้ารหัส UTF-8 สำหรับเบราว์เซอร์ปัจจุบัน
+    """
     data = path.read_bytes()
+    ascii_name = re.sub(r"[^A-Za-z0-9._-]+", "_", path.name).strip("_") or "report.xlsx"
+    disposition = (
+        f'attachment; filename="{ascii_name}"; '
+        f"filename*=UTF-8''{quote(path.name)}"
+    )
     return StreamingResponse(
         io.BytesIO(data),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": f'attachment; filename="{path.name}"'},
+        headers={"Content-Disposition": disposition},
     )
 
 
