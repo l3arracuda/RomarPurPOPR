@@ -74,18 +74,56 @@ function table(node, cols, rows, key) {
   node.appendChild(tb);
 }
 
+function monthRange(ym) {
+  const [y, m] = ym.split("-").map(Number);
+  return [iso(new Date(y, m - 1, 1)), iso(new Date(y, m, 0))];
+}
+
+/** พาไปยังแท็บที่ต้องการ พร้อมตั้งช่วงวันที่และตัวกรองให้เรียบร้อย */
+function goTab(tab, from, to, opts = {}) {
+  if (from && to) {
+    $("#dfrom").value = from;
+    $("#dto").value = to;
+    // ช่วงวันที่ถูกกำหนดเองแล้ว ปุ่มลัดจึงไม่ควรค้างไฮไลต์ไว้
+    document.querySelectorAll(".chip").forEach(c => c.classList.remove("on"));
+  }
+  if (opts.overdueOnly !== undefined) $("#overdue").checked = opts.overdueOnly;
+  if (opts.sort) $("#sort").value = opts.sort;
+
+  document.querySelectorAll(".tab").forEach(t => {
+    const on = t.dataset.tab === tab;
+    t.classList.toggle("active", on);
+  });
+  TAB = tab;
+  CACHE = {};
+  window.scrollTo({ top: 0, behavior: "smooth" });
+  render();
+}
+
 function kpis(s) {
   const box = $("#kpis"); box.innerHTML = "";
-  const add = (k, v, sub, cls) => {
-    const d = el("div", "kpi" + (cls ? " " + cls : ""));
+  const from = $("#dfrom").value, to = $("#dto").value;
+  const add = (k, v, sub, cls, go) => {
+    const d = el("div", "kpi" + (cls ? " " + cls : "") + (go ? " clickable" : ""));
     d.append(el("div", "k", k), el("div", "v", v), el("div", "s", sub || ""));
+    if (go) {
+      d.append(el("div", "golink", "ดูรายละเอียด →"));
+      d.title = "คลิกเพื่อดูตารางรายละเอียด";
+      d.onclick = go;
+    }
     box.appendChild(d);
   };
-  add("มูลค่าสั่งซื้อในช่วง", baht(s.po.amt), `${int(s.po.docs)} ใบ · ${int(s.po.lines)} บรรทัด`);
-  add("มูลค่ารับเข้าในช่วง", baht(s.rcv.amt), `${int(s.rcv.docs)} ใบ · ${int(s.rcv.lines)} บรรทัด`);
-  add("ส่งคืนในช่วง", baht(s.ret.amt), `${int(s.ret.lines)} บรรทัด`);
-  add("ค้างรับทั้งหมด", baht(s.open.amt), `${int(s.open.lines)} บรรทัด (ณ ปัจจุบัน)`);
-  add("ค้างเกินกำหนด", baht(s.open.od_amt), `${int(s.open.od_lines)} บรรทัด`, "bad");
+  add("มูลค่าสั่งซื้อในช่วง", baht(s.po.amt), `${int(s.po.docs)} ใบ · ${int(s.po.lines)} บรรทัด`,
+      "", () => goTab("po", from, to));
+  add("มูลค่ารับเข้าในช่วง", baht(s.rcv.amt), `${int(s.rcv.docs)} ใบ · ${int(s.rcv.lines)} บรรทัด`,
+      "", () => goTab("receipts", from, to));
+  add("ส่งคืนในช่วง", baht(s.ret.amt), `${int(s.ret.lines)} บรรทัด`,
+      "", () => goTab("receipts", from, to));
+  // ของค้างรับคิด ณ ปัจจุบันเสมอ ไม่ขึ้นกับช่วงวันที่ จึงไม่ส่งวันที่ไปด้วย
+  add("ค้างรับทั้งหมด", baht(s.open.amt), `${int(s.open.lines)} บรรทัด (ณ ปัจจุบัน)`,
+      "", () => goTab("open", null, null, { overdueOnly: false }));
+  add("ค้างเกินกำหนด", baht(s.open.od_amt), `${int(s.open.od_lines)} บรรทัด`, "bad",
+      () => goTab("open", null, null, { overdueOnly: true }));
   add("ส่งตรงเวลา",
       s.ontime_pct == null ? "—" : (s.ontime_pct * 100).toFixed(1) + "%",
       `จากใบรับ ${int(s.ontime_n)} บรรทัดในช่วง`,
@@ -101,8 +139,11 @@ function chart(rows) {
     const b1 = el("div", "bar1"), b2 = el("div", "bar2");
     b1.style.height = (r.po_amt / max * 100) + "%";
     b2.style.height = (r.rcv_amt / max * 100) + "%";
-    b1.title = `สั่ง ${baht(r.po_amt)} (${r.po_docs} ใบ)`;
-    b2.title = `รับ ${baht(r.rcv_amt)} (${r.rcv_docs} ใบ)`;
+    b1.title = `สั่ง ${baht(r.po_amt)} (${r.po_docs} ใบ) — คลิกเพื่อดูใบสั่งซื้อเดือนนี้`;
+    b2.title = `รับ ${baht(r.rcv_amt)} (${r.rcv_docs} ใบ) — คลิกเพื่อดูใบรับเข้าเดือนนี้`;
+    const [mf, mt] = monthRange(r.ym);
+    b1.onclick = () => goTab("po", mf, mt, { sort: "podat" });
+    b2.onclick = () => goTab("receipts", mf, mt);
     pair.append(b1, b2); g.append(pair, el("div", "barlbl", r.ym.slice(2)));
     bars.appendChild(g);
   });
