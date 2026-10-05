@@ -134,7 +134,9 @@ function chart(rows) {
   const box = $("#chart"); box.innerHTML = "";
   const max = Math.max(1, ...rows.map(r => Math.max(r.po_amt, r.rcv_amt)));
   const bars = el("div", "bars");
-  rows.forEach(r => {
+  // API คืนข้อมูลเรียงจากเก่าไปใหม่ แต่หน้าจอให้เดือนล่าสุดอยู่ซ้ายสุด
+  // เพราะเดือนปัจจุบันคือสิ่งที่จัดซื้อมองก่อนเสมอ
+  rows.slice().reverse().forEach(r => {
     const g = el("div", "bargrp"), pair = el("div", "pair");
     const b1 = el("div", "bar1"), b2 = el("div", "bar2");
     b1.style.height = (r.po_amt / max * 100) + "%";
